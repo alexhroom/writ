@@ -16,6 +16,6 @@ where [INPUT FILE] is a plain text file which is parsed as:
 - line of text -> text
 - line starting with `@` -> path to an image
 - line starting with `$` -> a LaTeX equation
-- line starting with ` ` ` -> a line in a code block.
+- line starting with `` ` `` -> a line in a code block.
 
 
