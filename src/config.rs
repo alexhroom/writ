@@ -27,7 +27,7 @@ impl From<Color> for Fill {
 
 pub static PAGE_DIM: Dimensions = Dimensions { w: 800.0, h: 450.0 };
 
-pub static BG: Color = Color {r: 255, g: 255, b: 255};
+pub static BG: Color = Color {r: 100, g: 100, b: 100};
 pub static FG: Color = Color {r: 0, g: 0, b: 0};
 pub static ACCENT: Color = Color {r: 241, g: 241, b: 241};
 
