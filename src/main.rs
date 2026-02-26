@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 
@@ -15,17 +15,17 @@ use config::*;
 #[command(version, about, long_about = None)]
 struct Args {
     /// The file to read
-    #[arg(short, long)]
+    #[arg()]
     input: String,
     #[arg(short, long)]
-    output: String,
+    output: Option<String>,
 }
 
 
 fn main() -> io::Result<()> {
     let args = Args::parse();
 
-    let file = File::open(args.input)?;
+    let file = File::open(&args.input)?;
     let reader = BufReader::new(file);
 
     let font = {
@@ -117,7 +117,8 @@ fn main() -> io::Result<()> {
     surface.finish();
     page.finish();
     let pdf = doc.finish().unwrap();
-    let path = std::path::Path::new(&args.output);
+    let output_path = args.output.unwrap_or_else(|| Path::new(&args.input).file_stem().unwrap().to_str().unwrap().to_string() + ".pdf");
+    let path = std::path::Path::new(&output_path);
 
     // Write the PDF to a file.
     std::fs::write(path, &pdf).unwrap();
