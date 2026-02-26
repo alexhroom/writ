@@ -34,6 +34,12 @@ fn main() -> io::Result<()> {
         Font::new(data.into(), 0).unwrap()
     };
 
+    let code_font = {
+        let path = PathBuf::from(CODE_FONT_PATH);
+        let data = std::fs::read(&path).unwrap();
+        Font::new(data.into(), 0).unwrap()
+    };
+
     let mut doc = Document::new();
     let mut page = doc.start_page_with(PageSettings::from_wh(PAGE_DIM.w, PAGE_DIM.h).unwrap());
     let mut surface = page.surface();
@@ -65,8 +71,28 @@ fn main() -> io::Result<()> {
             l if l.starts_with("$") => {
                 // math
             }
-            l if l.starts_with("`") => {
+            ref l if l.starts_with("`") => {
                 // code
+                if page_empty {
+                    // start text block  
+                } else {
+                    // add to current text block
+                    current_pt.1 += FONT_SIZE as f32 * 1.2;
+                }
+                page_empty = false;
+                surface.draw_text(
+                    Point::from_xy(current_pt.0 + PAGE_DIM.w * MARGIN * (4.5 / 16.), 
+                                   current_pt.1),
+                    code_font.clone(),
+                    FONT_SIZE,
+                    &line[1..],
+                    false,
+                    TextDirection::Auto
+                );
+            }
+            l if l == "/" => {
+                // line break
+                current_pt.1 += FONT_SIZE as f32 * 1.2;
             }
             _ => {
                 // anything else is text

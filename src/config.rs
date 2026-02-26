@@ -34,4 +34,5 @@ pub static ACCENT: Color = Color {r: 241, g: 241, b: 241};
 pub static MARGIN: f32 = 0.2; // 10% of page width/height
 
 pub static FONT_PATH: &str = "/usr/local/share/fonts/IBMPlexSans-Light.ttf";
-pub static FONT_SIZE: f32 = 48.;
+pub static CODE_FONT_PATH: &str = "/usr/local/share/fonts/zed-mono-regular.ttf";
+pub static FONT_SIZE: f32 = 36.;
