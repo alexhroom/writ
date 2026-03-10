@@ -22,6 +22,10 @@ struct Args {
     output: Option<String>,
 }
 
+// consts for margins
+const TOP_LEFT: (f32, f32) = (PAGE_DIM.w * MARGIN * (9./16.), PAGE_DIM.h * MARGIN);
+const BOTTOM_RIGHT: (f32, f32) = (PAGE_DIM.w - TOP_LEFT.0, PAGE_DIM.h - TOP_LEFT.1);
+
 
 fn main() -> io::Result<()> {
     let args = Args::parse();
@@ -46,13 +50,11 @@ fn main() -> io::Result<()> {
     let mut surface = page.surface();
     surface.set_fill(Some(FG.into()));
 
-    let top_left: (f32, f32) = (PAGE_DIM.w * MARGIN * (9./16.), PAGE_DIM.h * MARGIN);
-    let bottom_right: (f32, f32) = (PAGE_DIM.w * (1. - MARGIN * (9./16.)), PAGE_DIM.h * (1. - MARGIN));
-    let mut current_pt: (f32, f32) = top_left;
-    let mut image_size: Size;
+    let mut current_pt: (f32, f32) = TOP_LEFT;
     let mut image: Image;
 
-    let mut page_empty = true; 
+    let mut page_empty = true;
+    let mut image_centre: (f32, f32);
 
     for line in reader.lines().map_while(Result::ok) {
         match line {
@@ -64,7 +66,7 @@ fn main() -> io::Result<()> {
                 surface = page.surface();
                 surface.set_fill(Some(FG.into()));
                 page_empty = true;
-                current_pt = top_left;
+                current_pt = TOP_LEFT;
             }
             l if l.starts_with("#") => {
                 // comment, ignore
@@ -72,13 +74,25 @@ fn main() -> io::Result<()> {
             }
             l if l.starts_with("@") => {
                 // image
-                if !page_empty {
-                    // put image in lower-right corner
-                    current_pt = (PAGE_DIM.w / 2., PAGE_DIM.h / 2.);
-                } 
-                image_size = Size::from_wh(bottom_right.0 - current_pt.0, bottom_right.1 - current_pt.1).unwrap();
+      
                 image = get_image(&l[1..])?;
-                surface.push_transform(&Transform::from_translate(current_pt.0, current_pt.1));
+                let (width, height) = image.size();
+
+                if !page_empty {
+                    // put image in right side 
+                    if width > height {
+                    // if image is wider than it is tall, put in bottom 
+                    image_centre = (PAGE_DIM.w * 0.5, PAGE_DIM.h * 0.7);
+                    } else {
+                    // if image is taller than it is wide, put in right
+                    image_centre = (PAGE_DIM.w * 0.7, PAGE_DIM.h * 0.5);
+                    }
+                } else {
+                    // put in centre of page
+                    image_centre = (PAGE_DIM.w * 0.5, PAGE_DIM.h * 0.5)
+                }
+                let (transform, image_size) = get_image_centre_scaling(&image, image_centre);
+                surface.push_transform(&transform);
                 surface.draw_image(image, image_size);
                 surface.pop();
             }
@@ -140,6 +154,7 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
+// get an image from a file path, supporting png, jpg/jpeg, gif, and webp
 fn get_image(filename: &str) -> Result<Image, std::io::Error> {
     let path = PathBuf::from(filename);
     let data: Data = std::fs::read(&path).unwrap().into();
@@ -155,4 +170,32 @@ fn get_image(filename: &str) -> Result<Image, std::io::Error> {
     } else {
         Ok(image.unwrap())
     }
+}
+
+// given an image and a centre point, return a transform that scales the image to fit within the
+// page margins and is centred on the given point, as well as the size of the scaled image 
+fn get_image_centre_scaling(image: &Image, centre: (f32, f32)) -> (Transform, Size) {
+    let (width, height) = image.size();
+    let scale: f32;
+    let scaled_width: f32;
+    let scaled_height: f32;
+    let max_width = match centre.0 > PAGE_DIM.w * 0.5 {
+        true => BOTTOM_RIGHT.0 - centre.0,
+        false => centre.0 - TOP_LEFT.0,
+    };
+    let max_height = match centre.1 > PAGE_DIM.h * 0.5 {
+        true => BOTTOM_RIGHT.1 - centre.1,
+        false => centre.1 - TOP_LEFT.1,
+    };
+    if max_width < max_height {
+        scaled_width = max_width * 2.0;
+        scale = scaled_width / width as f32;
+        scaled_height = height as f32 * scale;
+    } else {
+        scaled_height = max_height * 2.0;
+        scale = scaled_height / height as f32;
+        scaled_width = width as f32 * scale;
+    } 
+    let transform = Transform::from_translate(centre.0 as f32 - scaled_width / 2.0, centre.1 as f32 - scaled_height / 2.0);
+    (transform, Size::from_wh(scaled_width, scaled_height).unwrap())
 }
