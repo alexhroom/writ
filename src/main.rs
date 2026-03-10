@@ -3,10 +3,11 @@ use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 
 use clap::Parser;
-use krilla::Document;
+use krilla::{Document, Data};
 use krilla::page::PageSettings;
 use krilla::text::{Font, TextDirection};
-use krilla::geom::Point;
+use krilla::geom::{Point, Size, Transform};
+use krilla::image::Image;
 
 mod config;
 use config::*;
@@ -45,7 +46,11 @@ fn main() -> io::Result<()> {
     let mut surface = page.surface();
     surface.set_fill(Some(FG.into()));
 
-    let mut current_pt: (f32, f32) = (PAGE_DIM.w * MARGIN * (9./16.), PAGE_DIM.h * MARGIN);
+    let top_left: (f32, f32) = (PAGE_DIM.w * MARGIN * (9./16.), PAGE_DIM.h * MARGIN);
+    let bottom_right: (f32, f32) = (PAGE_DIM.w * (1. - MARGIN * (9./16.)), PAGE_DIM.h * (1. - MARGIN));
+    let mut current_pt: (f32, f32) = top_left;
+    let mut image_size: Size;
+    let mut image: Image;
 
     let mut page_empty = true; 
 
@@ -59,23 +64,30 @@ fn main() -> io::Result<()> {
                 surface = page.surface();
                 surface.set_fill(Some(FG.into()));
                 page_empty = true;
-                current_pt = (PAGE_DIM.w * MARGIN * (9./16.), PAGE_DIM.h * MARGIN);
+                current_pt = top_left;
             }
             l if l.starts_with("#") => {
                 // comment, ignore
                 continue;
             }
             l if l.starts_with("@") => {
-                // image 
+                // image
+                if !page_empty {
+                    // put image in lower-right corner
+                    current_pt = (PAGE_DIM.w / 2., PAGE_DIM.h / 2.);
+                } 
+                image_size = Size::from_wh(bottom_right.0 - current_pt.0, bottom_right.1 - current_pt.1).unwrap();
+                image = get_image(&l[1..])?;
+                surface.push_transform(&Transform::from_translate(current_pt.0, current_pt.1));
+                surface.draw_image(image, image_size);
+                surface.pop();
             }
             l if l.starts_with("$") => {
                 // math
             }
             ref l if l.starts_with("`") => {
                 // code
-                if page_empty {
-                    // start text block  
-                } else {
+                if !page_empty {
                     // add to current text block
                     current_pt.1 += FONT_SIZE as f32 * 1.2;
                 }
@@ -126,4 +138,21 @@ fn main() -> io::Result<()> {
     eprintln!("Saved PDF to '{}'", path.display());
 
     Ok(())
+}
+
+fn get_image(filename: &str) -> Result<Image, std::io::Error> {
+    let path = PathBuf::from(filename);
+    let data: Data = std::fs::read(&path).unwrap().into();
+    let image = match path.extension().and_then(|ext| ext.to_str()) {
+        Some("png") => Image::from_png(data, true),
+        Some("jpg") | Some("jpeg") => Image::from_jpeg(data, true),
+        Some("gif") => Image::from_gif(data, true),
+        Some("webp") => Image::from_webp(data, true),
+        _ => Err(format!("Unsupported image format: {}", filename)), 
+    };
+    if image.is_err() {
+        Err(std::io::Error::new(std::io::ErrorKind::InvalidData, image.err().unwrap()))
+    } else {
+        Ok(image.unwrap())
+    }
 }
